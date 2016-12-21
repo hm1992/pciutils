@@ -508,7 +508,11 @@ show_htype1(struct device *d)
 	  io_limit |= (get_conf_word(d, PCI_IO_LIMIT_UPPER16) << 16);
 	}
       if (io_base <= io_limit)
-	printf("\tI/O behind bridge: %08x-%08x\n", io_base, io_limit+0xfff);
+	{
+	  printf("\tI/O behind bridge: %08x-%08x", io_base, io_limit+0xfff);
+	  show_size(io_limit+0xfff - io_base + 1);
+	  putchar('\n');
+	}
       else if (verb)
 	printf("\tI/O behind bridge: None\n");
     }
@@ -521,7 +525,11 @@ show_htype1(struct device *d)
       mem_base = (mem_base & PCI_MEMORY_RANGE_MASK) << 16;
       mem_limit = (mem_limit & PCI_MEMORY_RANGE_MASK) << 16;
       if (mem_base <= mem_limit)
-	printf("\tMemory behind bridge: %08x-%08x\n", mem_base, mem_limit + 0xfffff);
+	{
+	  printf("\tMemory behind bridge: %08x-%08x", mem_base, mem_limit + 0xfffff);
+	  show_size(mem_limit + 0xfffff - mem_base + 1);
+	  putchar('\n');
+	}
       else if (verb)
         printf("\tMemory behind bridge: None\n");
     }
@@ -536,13 +544,19 @@ show_htype1(struct device *d)
       if (pref_base <= pref_limit)
 	{
 	  if (pref_type == PCI_PREF_RANGE_TYPE_32)
-	    printf("\tPrefetchable memory behind bridge: %08x-%08x\n", pref_base, pref_limit + 0xfffff);
+	    {
+	      printf("\tPrefetchable memory behind bridge: %08x-%08x", pref_base, pref_limit + 0xfffff);
+	      show_size(pref_limit + 0xfffff - pref_base + 1);
+	      putchar('\n');
+	    }
 	  else
-	    printf("\tPrefetchable memory behind bridge: %08x%08x-%08x%08x\n",
-		   get_conf_long(d, PCI_PREF_BASE_UPPER32),
-		   pref_base,
-		   get_conf_long(d, PCI_PREF_LIMIT_UPPER32),
-		   pref_limit + 0xfffff);
+	    {
+	      pciaddr_t pref_base_64  = pref_base  + ((pciaddr_t)get_conf_long(d, PCI_PREF_BASE_UPPER32)  << 32);
+	      pciaddr_t pref_limit_64 = pref_limit + ((pciaddr_t)get_conf_long(d, PCI_PREF_LIMIT_UPPER32) << 32);
+	      printf("\tPrefetchable memory behind bridge: %016lx-%016lx", pref_base_64, pref_limit_64 + 0xfffff);
+	      show_size(pref_limit_64 + 0xfffff - pref_base_64 + 1);
+	      putchar('\n');
+	    }
 	}
       else if (verb)
 	printf("\tPrefetchable memory behind bridge: None\n");
