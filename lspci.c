@@ -344,6 +344,15 @@ show_size(pciaddr_t x)
 }
 
 static void
+show_size_or_none(pciaddr_t base, pciaddr_t limit)
+{
+  if (limit >= base)
+    show_size(limit - base + 1);
+  else
+    printf(" [size=None]");
+}
+
+static void
 show_bases(struct device *d, int cnt)
 {
   struct pci_dev *p = d->dev;
@@ -481,8 +490,8 @@ show_htype1(struct device *d)
   u32 mem_base = get_conf_word(d, PCI_MEMORY_BASE);
   u32 mem_limit = get_conf_word(d, PCI_MEMORY_LIMIT);
   u32 mem_type = mem_base & PCI_MEMORY_RANGE_TYPE_MASK;
-  u32 pref_base = get_conf_word(d, PCI_PREF_MEMORY_BASE);
-  u32 pref_limit = get_conf_word(d, PCI_PREF_MEMORY_LIMIT);
+  pciaddr_t pref_base = get_conf_word(d, PCI_PREF_MEMORY_BASE);
+  pciaddr_t pref_limit = get_conf_word(d, PCI_PREF_MEMORY_LIMIT);
   u32 pref_type = pref_base & PCI_PREF_RANGE_TYPE_MASK;
   word sec_stat = get_conf_word(d, PCI_SEC_STATUS);
   word brc = get_conf_word(d, PCI_BRIDGE_CONTROL);
@@ -508,7 +517,11 @@ show_htype1(struct device *d)
 	  io_limit |= (get_conf_word(d, PCI_IO_LIMIT_UPPER16) << 16);
 	}
       if (io_base <= io_limit || verb)
-	printf("\tI/O behind bridge: %08x-%08x\n", io_base, io_limit+0xfff);
+	{
+	  printf("\tI/O behind bridge: %08x-%08x", io_base, io_limit+0xfff);
+	  show_size_or_none(io_base, io_limit+0xfff);
+	  putchar('\n');
+	}
     }
 
   if (mem_type != (mem_limit & PCI_MEMORY_RANGE_TYPE_MASK) ||
@@ -519,12 +532,16 @@ show_htype1(struct device *d)
       mem_base = (mem_base & PCI_MEMORY_RANGE_MASK) << 16;
       mem_limit = (mem_limit & PCI_MEMORY_RANGE_MASK) << 16;
       if (mem_base <= mem_limit || verb)
-	printf("\tMemory behind bridge: %08x-%08x\n", mem_base, mem_limit + 0xfffff);
+	{
+	  printf("\tMemory behind bridge: %08x-%08x", mem_base, mem_limit + 0xfffff);
+	  show_size_or_none(mem_base, mem_limit + 0xfffff);
+	  putchar('\n');
+	}
     }
 
   if (pref_type != (pref_limit & PCI_PREF_RANGE_TYPE_MASK) ||
       (pref_type != PCI_PREF_RANGE_TYPE_32 && pref_type != PCI_PREF_RANGE_TYPE_64))
-    printf("\t!!! Unknown prefetchable memory range types %x/%x\n", pref_base, pref_limit);
+    printf("\t!!! Unknown prefetchable memory range types " PCIADDR_T_FMT_L "/" PCIADDR_T_FMT_L "\n", pref_base, pref_limit);
   else
     {
       pref_base = (pref_base & PCI_PREF_RANGE_MASK) << 16;
@@ -532,13 +549,27 @@ show_htype1(struct device *d)
       if (pref_base <= pref_limit || verb)
 	{
 	  if (pref_type == PCI_PREF_RANGE_TYPE_32)
-	    printf("\tPrefetchable memory behind bridge: %08x-%08x\n", pref_base, pref_limit + 0xfffff);
+	    {
+	      printf("\tPrefetchable memory behind bridge: " PCIADDR_T_FMT_L "-" PCIADDR_T_FMT_L, pref_base, pref_limit + 0xfffff);
+	      show_size_or_none(pref_base, pref_limit + 0xfffff);
+	      putchar('\n');
+	    }
 	  else
+#ifdef PCI_HAVE_64BIT_ADDRESS
+	    {
+	      pref_base = pref_base | ( (pciaddr_t)get_conf_long(d, PCI_PREF_BASE_UPPER32) << 32);
+	      pref_limit = pref_limit | ( (pciaddr_t)get_conf_long(d, PCI_PREF_LIMIT_UPPER32) << 32);
+	      printf("\tPrefetchable memory behind bridge: " PCIADDR_T_FMT_L "-" PCIADDR_T_FMT_L, pref_base, pref_limit + 0xfffff);
+	      show_size_or_none(pref_base, pref_limit + 0xfffff);
+	      putchar('\n');
+	    }
+#else
 	    printf("\tPrefetchable memory behind bridge: %08x%08x-%08x%08x\n",
 		   get_conf_long(d, PCI_PREF_BASE_UPPER32),
 		   pref_base,
 		   get_conf_long(d, PCI_PREF_LIMIT_UPPER32),
 		   pref_limit + 0xfffff);
+#endif
 	}
     }
 
